@@ -1,0 +1,21 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "CryptoGains.Console", "src\CryptoGains.Console\CryptoGains.Console.fsproj", "{A5D5060F-E036-45E7-8885-0117A5B6729A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{83D17500-82F7-44C7-AB67-C6337161A490}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A5D5060F-E036-45E7-8885-0117A5B6729A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5D5060F-E036-45E7-8885-0117A5B6729A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5D5060F-E036-45E7-8885-0117A5B6729A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5D5060F-E036-45E7-8885-0117A5B6729A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A5D5060F-E036-45E7-8885-0117A5B6729A} = {83D17500-82F7-44C7-AB67-C6337161A490}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net5.0</TargetFramework>
+        <RootNamespace>CryptoGains</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="FSharp.SystemTextJson" Version="0.16.6" />
+      <PackageReference Include="Oryx.SystemTextJson" Version="1.4.0" />
+      <PackageReference Include="Ply" Version="0.3.1" />
+      <PackageReference Include="Spectre.Console" Version="0.37.0" />
+    </ItemGroup>
+
+</Project>
