@@ -11,10 +11,12 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="FSharp.SystemTextJson" Version="0.16.6" />
-      <PackageReference Include="Oryx.SystemTextJson" Version="1.4.0" />
       <PackageReference Include="Ply" Version="0.3.1" />
       <PackageReference Include="Spectre.Console" Version="0.37.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\CryptoGains\CryptoGains.fsproj" />
     </ItemGroup>
 
 </Project>
