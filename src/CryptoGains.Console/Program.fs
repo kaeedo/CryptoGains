@@ -3,6 +3,7 @@ open Spectre.Console
 
 [<EntryPoint>]
 let main argv =
+    printfn "%A" <| Transactions.getAllTrades().GetAwaiter().GetResult()
     let wantedCoins =
         [ "cardano"
           "bitpanda-ecosystem-token"
@@ -15,6 +16,12 @@ let main argv =
         (CryptoGains.getPrices wantedCoins wantedCurrencies)
             .GetAwaiter()
             .GetResult()
+            
+    // get transactions
+    // calculate price per unit per coin
+    // get current prices
+    // calculate percent gain
+    // render
 
     match result with
     | Error e -> printfn "An error occured: %A" e
