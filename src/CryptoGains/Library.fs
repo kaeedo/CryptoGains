@@ -13,8 +13,7 @@ type Coin = { Name: string; Prices: Map<string, decimal> }
 
 module CryptoGains =
     [<Literal>]
-    let private url =
-        "https://api.coingecko.com/api/v3/simple/price"
+    let private url = ""
 
     let coinDecoder: Decoder<Coin seq> =
         let priceDecoder = Decode.dict Decode.decimal            

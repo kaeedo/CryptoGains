@@ -6,12 +6,12 @@ type TradeType =
     | Swap = 2
 
 type Cryptocoin =
-    { Id: int
+    { Id: string
       Symbol: string
       Name: string }
 
 type Trade =
     { Type: TradeType
-      //Cryptocoin: Cryptocoin
+      Cryptocoin: Cryptocoin
       Amount: decimal
       Price: decimal }
