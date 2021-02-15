@@ -2,12 +2,11 @@
 
 open System
 open System.Net.Http
-open System.Threading.Tasks
+open FsToolkit.ErrorHandling
+open FsToolkit.ErrorHandling.Operator.TaskResult
 open Oryx
 open Oryx.ThothJsonNet.ResponseReader
 open Thoth.Json.Net
-open FSharp.Control.Tasks.V2.ContextInsensitive
-open Railways
 
 [<RequireQualifiedAccess>]
 module Transactions =
@@ -18,100 +17,106 @@ module Transactions =
     let private apiKey =
         Environment.GetEnvironmentVariable("BITPANDA")
 
-    let private cryptocoinDecoder: Decoder<Cryptocoin list> =
-        let objectDecoder =
-            Decode.object (fun get ->
-                { Cryptocoin.Id = get.Required.Field "id" Decode.string
-                  Symbol = get.Required.Field "symbol" Decode.string
-                  Name = get.Required.Field "name" Decode.string })
-
-        Decode.list objectDecoder
-
-    let private tradeDecoder cryptocoins: Decoder<Trade list> =
+    let private tradeDecoder (bitpandaCoins: Map<int, string>) (coinGeckoCoins: Map<string, string * string>): Decoder<Trade list> =
         let tradeTypeDecoder =
             Decode.string
             |> Decode.map (fun str -> Enum.Parse(typeof<TradeType>, str, true) :?> TradeType)
 
         let tradeDecoder =
             Decode.object (fun get ->
+                let symbol =
+                    (bitpandaCoins.[get.Required.At [ "attributes"; "cryptocoin_id" ] Decode.int]).ToUpperInvariant()
+                    
                 { Trade.Amount = get.Required.At [ "attributes"; "amount_cryptocoin" ] Decode.decimal
                   Price = get.Required.At [ "attributes"; "price" ] Decode.decimal
                   Type = get.Required.At [ "attributes"; "type" ] tradeTypeDecoder
                   Cryptocoin =
-                      cryptocoins
-                      |> List.find (fun c ->
-                          c.Symbol.ToLowerInvariant() = get.Required.At [ "attributes"; "cryptocoin_id" ] Decode.string) })
+                      { Cryptocoin.BitpandaId = get.Required.At [ "attributes"; "cryptocoin_id" ] Decode.int
+                        CoinGeckoId = coinGeckoCoins.[symbol] |> fst
+                        Symbol = symbol
+                        Name = coinGeckoCoins.[symbol] |> snd }
+
+                })
 
         Decode.field "data" (Decode.list tradeDecoder)
 
-    let private bitpandaRequest resource =
+    let private coinIdDecoder: Decoder<Map<int, string>> =
+        let objDecoder =
+            Decode.object (fun get ->
+                (get.Required.At [ "attributes"; "cryptocoin_id" ] Decode.int),
+                (get.Required.At [ "attributes"; "cryptocoin_symbol" ] Decode.string))
+
+        let listDecoder = Decode.list objDecoder
+        let data = Decode.field "data" listDecoder
+        data |> Decode.map (Map.ofList)
+
+    let private coinGeckoCoinListDecoder: Decoder<Map<string, string * string>> =
+        let objDecoder =
+            Decode.object (fun get ->
+                (get.Required.Field "symbol" Decode.string)
+                    .ToUpperInvariant(),
+                ((get.Required.Field "id" Decode.string), (get.Required.Field "name" Decode.string)))
+
+        Decode.list objDecoder
+        |> Decode.map (Map.ofList)
+        
+    let private coinPriceDecoder: Decoder<Map<string, decimal>> =
+        Decode.dict <| Decode.field "EUR" Decode.decimal
+
+    let private bitpandaRequest resource decoder =
         GET
         >=> withUrlBuilder (fun (req: HttpRequest) -> $"{baseBitpandaUrl}/{resource}")
-        >=> withHeader "X-API-KEY" apiKey
+        >=> withHeader "X-API-KEY" (if resource = "ticker" then String.Empty else apiKey)
         >=> withQuery [ struct ("page_size", "100") ]
         >=> fetch
-    // >=> json (tradeDecoder cryptocoins)
+        >=> json decoder
 
-    let private coinGeckoRequest resource =
+    let private coinGeckoRequest resource query decoder =
         GET
         >=> withUrlBuilder (fun _ -> $"{baseCoinGeckoUrl}/{resource}")
+        >=> withQuery query
         >=> fetch
+        >=> json decoder
     // coins/list
     // /simple/price
 
-    let getAllTrades () =
-        task {
+    let getAllTransactions () =
+        taskResult {
             use client = new HttpClient()
 
             let ctx =
                 Context.defaultContext
                 |> Context.withHttpClient client
 
-            let! results =
-                Task.WhenAll
-                    ([ bitpandaRequest "trades" |> runAsync ctx
-                       bitpandaRequest "wallets" |> runAsync ctx
-                       coinGeckoRequest "coins/lis" |> runAsync ctx ])
+            let! cryptocoinIdMap =
+                bitpandaRequest "wallets" coinIdDecoder
+                |> runAsync ctx
 
-            let! cryptocoins =
-                task {
-                    match results.[0] with
-                    | Ok r ->
-                        let! str = r.ReadAsStringAsync()
-                        let cc = Decode.fromString cryptocoinDecoder str
-                        return cc
-                }
-
-            let coinIdDecoder: Decoder<Map<int, string>> =
-                let objDecoder =
-                    Decode.object (fun get ->
-                        (get.Required.At [ "attributes"; "cryptocoin_id" ] Decode.int),
-                        (get.Required.At [ "attributes"; "cryptocoin_symbol" ] Decode.string))
-
-                let listDecoder = Decode.list objDecoder
-                let data = Decode.field "data" listDecoder
-                data |> Decode.map (Map.ofList)
-
-            let! bitpandaCoinIds =
-                task {
-                    match results.[1] with
-                    | Ok r ->
-                        let! str = r.ReadAsStringAsync()
-                        let w = Decode.fromString coinIdDecoder str
-                        // TODO: Combine with cryptocoins on line 76
-                        return w
-                }
+            and! coinList = coinGeckoRequest "coins/list" [] coinGeckoCoinListDecoder |> runAsync ctx
 
             let! trades =
-                task {
-                    match results.[2] with
-                    | Ok r -> return! r.ReadAsStringAsync()
-                        // TODO: Combine with bitpandaCoinIds on line 95
-                }
-                
-            // TODO Railwayify. maybe with async railways
-
-            printfn "%A" trades
+                bitpandaRequest "trades" (tradeDecoder cryptocoinIdMap coinList)
+                |> runAsync ctx
 
             return trades
+        }
+    
+    let getCurrentPrices symbols =
+        taskResult {
+            use client = new HttpClient()
+
+            let ctx =
+                Context.defaultContext
+                |> Context.withHttpClient client
+            
+            let! prices = bitpandaRequest "ticker" coinPriceDecoder |> runAsync ctx
+            
+            let prices =
+                symbols
+                |> Seq.map (fun s ->
+                    s, prices.[s]
+                    )
+                |> Map.ofSeq
+            
+            return prices
         }

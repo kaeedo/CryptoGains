@@ -1,51 +1,76 @@
 ﻿open CryptoGains
 open Spectre.Console
+open FsToolkit.ErrorHandling
+open Spectre.Console.Rendering
 
 [<EntryPoint>]
 let main argv =
-    printfn "%A" <| Transactions.getAllTrades().GetAwaiter().GetResult()
-    let wantedCoins =
-        [ "cardano"
-          "bitpanda-ecosystem-token"
-          "ethereum"
-          "litecoin" ]
+    let run =
+        taskResult {
+            let! transactions = Transactions.getAllTransactions ()
+            let! assets = Assets.getAssets transactions
 
-    let wantedCurrencies = [ "eur"; "usd" ]
+            let! currentPrices =
+                Transactions.getCurrentPrices
+                    (assets
+                     |> List.map (fun a -> a.Cryptocoin.Symbol))
 
-    let result =
-        (CryptoGains.getPrices wantedCoins wantedCurrencies)
-            .GetAwaiter()
-            .GetResult()
-            
-    // get transactions
-    // calculate price per unit per coin
-    // get current prices
-    // calculate percent gain
-    // render
+            return assets, currentPrices
+        }
+        |> TaskResult.map (fun (assets, currentPrices) ->
+            let table = Table()
+            table.Border <- TableBorder.SimpleHeavy
 
-    match result with
-    | Error e -> printfn "An error occured: %A" e
-    | Ok r ->
-        let table = Table()
-        table.Border <- TableBorder.Minimal
+            let totalPricePaid = assets |> Seq.sumBy (fun r -> r.PricePaid)
+            let totalPricePaidColumn = TableColumn("Total Price Paid")
+            totalPricePaidColumn.Footer <- Text($"{totalPricePaid:N2}") :> IRenderable
 
-        table.AddColumn("Coin") |> ignore
+            let totalCurrentPrice =
+                assets
+                |> Seq.sumBy (fun a ->
+                    let amountOwned = a.AmountOwned
+                    let currentPrice = currentPrices.[a.Cryptocoin.Symbol]
+                    amountOwned * currentPrice)
 
-        wantedCurrencies
-        |> List.iter (table.AddColumn >> ignore)
+                
+            let totalCurrentPriceColumn = TableColumn("Total Current Price")
+            totalCurrentPriceColumn.Footer <- Text($"{totalCurrentPrice:N2}") :> IRenderable
 
-        r
-        |> Seq.iter (fun coin ->
-            let values =
-                [| coin.Name
+            let totalPercentChange = ((totalCurrentPrice / totalPricePaid) - 1M) * 100M
+            let percentChangeColumn = TableColumn("Percent Change")
+            percentChangeColumn.Footer <- Text($"{totalPercentChange:N2}%%") :> IRenderable
 
-                   yield!
-                       coin.Prices
-                       |> Seq.map (fun kvp -> kvp.Value.ToString()) |]
+            table.AddColumn("Coin") |> ignore
+            table.AddColumn("Amount Owned") |> ignore
+            table.AddColumn(totalPricePaidColumn) |> ignore
+            table.AddColumn(totalCurrentPriceColumn) |> ignore
+            table.AddColumn(percentChangeColumn) |> ignore
 
-            table.AddRow(values) |> ignore)
+            [ 1 .. 4 ]
+            |> Seq.iter (fun i -> table.Columns.[i].RightAligned() |> ignore)
 
-        // Render the table to the console
-        AnsiConsole.Render(table)
+            assets
+            |> Seq.iter (fun r ->
+                let totalCurrentPrice =
+                    let currentPrice = currentPrices.[r.Cryptocoin.Symbol]
+                    currentPrice * r.AmountOwned
+
+                let color = ""
+
+                let percentChange =
+                    ((totalCurrentPrice / r.PricePaid) - 1M) * 100M
+
+                table.AddRow
+                    ([| Text($"{r.Cryptocoin.Name}") :> IRenderable
+                        Text($"{r.AmountOwned}") :> IRenderable
+                        Text($"{r.PricePaid:N2}") :> IRenderable
+                        Text($"{totalCurrentPrice:N2}") :> IRenderable
+                        Text($"{percentChange:N2}%%") :> IRenderable |])
+                |> ignore)
+
+            AnsiConsole.Render(table))
+        |> TaskResult.mapError (fun e -> printfn "An error has occured: %A" e)
+
+    run.GetAwaiter().GetResult() |> ignore
 
     0 // return an integer exit code
