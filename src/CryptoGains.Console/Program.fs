@@ -71,6 +71,10 @@ let main argv =
             AnsiConsole.Render(table))
         |> TaskResult.mapError (fun e -> printfn "An error has occured: %A" e)
 
-    run.GetAwaiter().GetResult() |> ignore
+    AnsiConsole
+        .Status()
+        .StartAsync("Getting BitPanda data...", fun _ -> run)
+        .GetAwaiter().GetResult()
+        |> ignore
 
     0 // return an integer exit code
