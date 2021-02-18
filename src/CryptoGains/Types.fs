@@ -1,20 +1,25 @@
 ﻿namespace CryptoGains
 
 type TradeType =
-    | Buy = 0
-    | Sell = 1
+    | Buy
+    | Sell
+    | Withdrawal
+
+//type Cryptocoin =
+//    { BitpandaId: int
+//      CoinGeckoId: string
+//      Symbol: string
+//      Name: string }
 
 type Cryptocoin =
-    { BitpandaId: int
-      CoinGeckoId: string
-      Symbol: string
-      Name: string }
+    { Id: int
+      Symbol: string }
 
 type Trade =
     { Type: TradeType
       Cryptocoin: Cryptocoin
       Amount: decimal
-      Price: decimal }
+      AmountPaid: decimal }
 
 type Asset =
     { Cryptocoin: Cryptocoin

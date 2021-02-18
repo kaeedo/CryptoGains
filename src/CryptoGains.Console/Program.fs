@@ -1,17 +1,18 @@
 ﻿open CryptoGains
 open Spectre.Console
 open FsToolkit.ErrorHandling
+open Spectre.Console
 open Spectre.Console.Rendering
 
 [<EntryPoint>]
 let main argv =
     let run =
         taskResult {
-            let! transactions = Transactions.getAllTransactions ()
+            let! transactions = Bitpanda.getAllTransactions ()
             let! assets = Assets.getAssets transactions
 
             let! currentPrices =
-                Transactions.getCurrentPrices
+                Bitpanda.getCurrentPrices
                     (assets
                      |> List.map (fun a -> a.Cryptocoin.Symbol))
 
@@ -61,7 +62,7 @@ let main argv =
                     ((totalCurrentPrice / r.PricePaid) - 1M) * 100M
 
                 table.AddRow
-                    ([| Text($"{r.Cryptocoin.Name}") :> IRenderable
+                    ([| Text($"{r.Cryptocoin.Symbol}") :> IRenderable
                         Text($"{r.AmountOwned}") :> IRenderable
                         Text($"{r.PricePaid:N2}") :> IRenderable
                         Text($"{totalCurrentPrice:N2}") :> IRenderable
@@ -71,8 +72,10 @@ let main argv =
             AnsiConsole.Render(table))
         |> TaskResult.mapError (fun e -> printfn "An error has occured: %A" e)
 
-    AnsiConsole
-        .Status()
+    let status = AnsiConsole.Status()
+    status.Spinner <- Spinner.Known.Dots2
+    
+    status
         .StartAsync("Getting BitPanda data...", fun _ -> run)
         .GetAwaiter().GetResult()
         |> ignore
