@@ -5,12 +5,6 @@ type TradeType =
     | Sell
     | Withdrawal
 
-//type Cryptocoin =
-//    { BitpandaId: int
-//      CoinGeckoId: string
-//      Symbol: string
-//      Name: string }
-
 type Cryptocoin =
     { Id: int
       Symbol: string }
@@ -24,4 +18,5 @@ type Trade =
 type Asset =
     { Cryptocoin: Cryptocoin
       AmountOwned: decimal
+      HasExternalAmount: bool
       PricePaid: decimal }

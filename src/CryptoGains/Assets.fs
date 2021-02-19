@@ -28,6 +28,7 @@ module Assets =
                         
                         { Asset.Cryptocoin = (trades |> Seq.find (fun t -> t.Cryptocoin.Id = coinId)).Cryptocoin
                           AmountOwned = amountOwned
+                          HasExternalAmount = trades |> Seq.exists (fun t -> t.Type = Withdrawal)
                           PricePaid = pricePaid }
                     )
             

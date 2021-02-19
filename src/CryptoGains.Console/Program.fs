@@ -1,4 +1,8 @@
-﻿open CryptoGains
+﻿open System
+open System.Threading
+open CryptoGains
+open Ply
+open FSharp.Control.Tasks.V2.ContextInsensitive
 open Spectre.Console
 open FsToolkit.ErrorHandling
 open Spectre.Console
@@ -6,7 +10,7 @@ open Spectre.Console.Rendering
 
 [<EntryPoint>]
 let main argv =
-    let run =
+    let run () =
         taskResult {
             let! transactions = Bitpanda.getAllTransactions ()
             let! assets = Assets.getAssets transactions
@@ -34,12 +38,25 @@ let main argv =
                     amountOwned * currentPrice)
 
                 
-            let totalCurrentPriceColumn = TableColumn("Total Current Price")
+            let totalCurrentPriceColumn = TableColumn("Current Value")
             totalCurrentPriceColumn.Footer <- Text($"{totalCurrentPrice:N2}") :> IRenderable
 
-            let totalPercentChange = ((totalCurrentPrice / totalPricePaid) - 1M) * 100M
-            let percentChangeColumn = TableColumn("Percent Change")
-            percentChangeColumn.Footer <- Text($"{totalPercentChange:N2}%%") :> IRenderable
+            let totalPercentChange =
+                let pct = ((totalCurrentPrice / totalPricePaid) - 1M) * 100M
+                if pct >0.0M
+                then $"[green]{pct:N2}%%[/]"
+                else $"[red]{pct:N2}%%[/]"
+                
+            let percentChangeColumn = TableColumn("Change")
+            let difference =
+                    let diff = (totalCurrentPrice - totalPricePaid)
+                    let color =
+                        if diff > 0.0M
+                        then "green"
+                        else "red"
+                    $"[{color}]{diff:N2}[/]"
+                    
+            percentChangeColumn.Footer <- Markup($"{difference} ({totalPercentChange:N2})") :> IRenderable
 
             table.AddColumn("Coin") |> ignore
             table.AddColumn("Amount Owned") |> ignore
@@ -49,6 +66,18 @@ let main argv =
 
             [ 1 .. 4 ]
             |> Seq.iter (fun i -> table.Columns.[i].RightAligned() |> ignore)
+            table.Columns.[4].PadLeft(5) |> ignore
+            
+            let longest =
+                assets
+                |> Seq.map (fun a ->
+                    let totalCurrentPrice =
+                        let currentPrice = currentPrices.[a.Cryptocoin.Symbol]
+                        currentPrice * a.AmountOwned
+                        
+                    (int <| ((totalCurrentPrice / a.PricePaid) - 1M) * 100M).ToString().Length
+                    )
+                |> Seq.max
 
             assets
             |> Seq.iter (fun r ->
@@ -56,17 +85,41 @@ let main argv =
                     let currentPrice = currentPrices.[r.Cryptocoin.Symbol]
                     currentPrice * r.AmountOwned
 
-                let color = ""
-
                 let percentChange =
-                    ((totalCurrentPrice / r.PricePaid) - 1M) * 100M
+                    let pct = ((totalCurrentPrice / r.PricePaid) - 1M) * 100M
+                    let color =
+                        if pct > 0.0M
+                        then "green"
+                        else "red"
+                    $"[{color}]{pct:N2}%%[/]"
+                    
+                let difference =
+                    let diff = (totalCurrentPrice - r.PricePaid)
+                    let color =
+                        if diff > 0.0M
+                        then "green"
+                        else "red"
+                    $"[{color}]{diff:N2}[/]"
+                    
+                let padding =                        
+                    let amountNeeded =
+                        let currentLength =
+                            (int <| ((totalCurrentPrice / r.PricePaid) - 1M) * 100M).ToString().Length
+                        longest - currentLength + 1
+                        
+                    String.replicate amountNeeded " "
+                    
+                let hasNotes =
+                    if r.HasExternalAmount
+                    then "*"
+                    else String.Empty
 
                 table.AddRow
-                    ([| Text($"{r.Cryptocoin.Symbol}") :> IRenderable
+                    ([| Text($"{hasNotes} {r.Cryptocoin.Symbol}") :> IRenderable
                         Text($"{r.AmountOwned}") :> IRenderable
                         Text($"{r.PricePaid:N2}") :> IRenderable
                         Text($"{totalCurrentPrice:N2}") :> IRenderable
-                        Text($"{percentChange:N2}%%") :> IRenderable |])
+                        Markup($"{difference}{padding}({percentChange:N2})") :> IRenderable |])
                 |> ignore)
 
             AnsiConsole.Render(table))
@@ -76,8 +129,9 @@ let main argv =
     status.Spinner <- Spinner.Known.Dots2
     
     status
-        .StartAsync("Getting BitPanda data...", fun _ -> run)
+        .StartAsync("Getting BitPanda data...", fun _ -> run ())
         .GetAwaiter().GetResult()
         |> ignore
 
     0 // return an integer exit code
+
