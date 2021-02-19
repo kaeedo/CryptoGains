@@ -1,4 +1,5 @@
 ﻿open System
+open System.Globalization
 open CryptoGains
 open CryptoGains.Console
 open Spectre.Console
@@ -23,7 +24,7 @@ let main argv =
             let table = Table()
             table.Border <- TableBorder.SimpleHeavy
 
-            let totalPricePaid = assets |> Seq.sumBy (fun r -> r.PricePaid)
+            let totalPricePaid = assets |> Seq.sumBy (fun r -> snd r.PricePaid)
             let totalPricePaidColumn = TableColumn("Total Price Paid")
             totalPricePaidColumn.Footer <- Text($"{totalPricePaid:N2}") :> IRenderable
 
@@ -72,7 +73,7 @@ let main argv =
                         let currentPrice = currentPrices.[a.Cryptocoin.Symbol]
                         currentPrice * a.AmountOwned
                         
-                    (int <| ((totalCurrentPrice / a.PricePaid) - 1M) * 100M).ToString().Length
+                    (int <| ((totalCurrentPrice / (snd a.PricePaid)) - 1M) * 100M).ToString().Length
                     )
                 |> Seq.max
 
@@ -81,9 +82,23 @@ let main argv =
                 let totalCurrentPrice =
                     let currentPrice = currentPrices.[r.Cryptocoin.Symbol]
                     currentPrice * r.AmountOwned
-
+                    
+                let culture =
+                    let culture =
+                        if r.Properties |> List.contains(Property.IsMultiCurrency)
+                        then "de-DE"
+                        else
+                            match fst r.PricePaid with
+                            | Currency.Euro -> "de-DE"
+                            | Currency.UsDollar -> "en-US"
+                            | Currency.SwissFranc -> "de-CH"
+                            | Currency.BritishPounds -> "en-GB"
+                            | Currency.TurkishLira -> "tr-TR"
+                            | _ -> "de-DE"
+                    CultureInfo(culture)
+                        
                 let percentChange =
-                    let pct = ((totalCurrentPrice / r.PricePaid) - 1M) * 100M
+                    let pct = ((totalCurrentPrice / (snd r.PricePaid)) - 1M) * 100M
                     let color =
                         if pct > 0.0M
                         then "green"
@@ -91,17 +106,19 @@ let main argv =
                     $"[{color}]{pct:N2}%%[/]"
                     
                 let difference =
-                    let diff = (totalCurrentPrice - r.PricePaid)
+                    let diff = (totalCurrentPrice - (snd r.PricePaid))
                     let color =
                         if diff > 0.0M
                         then "green"
                         else "red"
-                    $"[{color}]{diff:N2}[/]"
-                    
+
+                    let diff = diff.ToString("c", culture)
+                    $"[{color}]{diff}[/]"
+                   
                 let padding =                        
                     let amountNeeded =
                         let currentLength =
-                            (int <| ((totalCurrentPrice / r.PricePaid) - 1M) * 100M).ToString().Length
+                            (int <| ((totalCurrentPrice / (snd r.PricePaid)) - 1M) * 100M).ToString().Length
                         longest - currentLength + 1
                         
                     String.replicate amountNeeded " "
@@ -110,12 +127,15 @@ let main argv =
                     if r.Properties |> List.contains (Property.HasExternalAmount)
                     then "*"
                     else String.Empty
+                    
+                let pricePaid = (snd r.PricePaid).ToString("c", culture)
+                let totalCurrentPrice = (totalCurrentPrice).ToString("c", culture)
 
                 table.AddRow
                     ([| Text($"{hasNotes} {r.Cryptocoin.Symbol}") :> IRenderable
                         Text($"{r.AmountOwned}") :> IRenderable
-                        Text($"{r.PricePaid:N2}") :> IRenderable
-                        Text($"{totalCurrentPrice:N2}") :> IRenderable
+                        Text($"{pricePaid}") :> IRenderable
+                        Text($"{totalCurrentPrice}") :> IRenderable
                         Markup($"{difference}{padding}({percentChange:N2})") :> IRenderable |])
                 |> ignore)
 

@@ -34,4 +34,4 @@ type Asset =
     { Cryptocoin: Cryptocoin
       AmountOwned: decimal
       Properties: Property list
-      PricePaid: decimal }
+      PricePaid: Currency * decimal }

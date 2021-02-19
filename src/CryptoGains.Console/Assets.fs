@@ -18,6 +18,11 @@ module Assets =
                             |> Seq.distinctBy (fun t -> t.AmountPaid.Currency)
                             |> Seq.length) > 1
                             
+                        let currency =
+                            if isMultiCurrency
+                            then Currency.Euro
+                            else (trades |> Seq.head).AmountPaid.Currency
+                            
                         let singleCurrencyFolder accumulator currentTrade =
                             let amountPaid = currentTrade.AmountPaid.Amount
                             match currentTrade.Type with
@@ -57,7 +62,7 @@ module Assets =
                         { Asset.Cryptocoin = (trades |> Seq.find (fun t -> t.Cryptocoin.Id = coinId)).Cryptocoin
                           AmountOwned = amountOwned
                           Properties = properties
-                          PricePaid = pricePaid }
+                          PricePaid = currency, pricePaid }
                     )
             
             return
