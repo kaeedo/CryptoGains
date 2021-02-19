@@ -7,7 +7,6 @@
     <ItemGroup>
         <Compile Include="Types.fs" />
         <Compile Include="Bitpanda.fs" />
-        <Compile Include="Assets.fs" />
     </ItemGroup>
 
     <ItemGroup>

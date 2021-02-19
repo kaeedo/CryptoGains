@@ -1,11 +1,8 @@
 ﻿open System
-open System.Threading
 open CryptoGains
-open Ply
-open FSharp.Control.Tasks.V2.ContextInsensitive
+open CryptoGains.Console
 open Spectre.Console
 open FsToolkit.ErrorHandling
-open Spectre.Console
 open Spectre.Console.Rendering
 
 [<EntryPoint>]
@@ -110,7 +107,7 @@ let main argv =
                     String.replicate amountNeeded " "
                     
                 let hasNotes =
-                    if r.HasExternalAmount
+                    if r.Properties |> List.contains (Property.HasExternalAmount)
                     then "*"
                     else String.Empty
 
@@ -122,7 +119,16 @@ let main argv =
                         Markup($"{difference}{padding}({percentChange:N2})") :> IRenderable |])
                 |> ignore)
 
-            AnsiConsole.Render(table))
+            AnsiConsole.Render(table)
+
+            if assets |> Seq.exists (fun a -> a.Properties |> List.contains (Property.HasExternalAmount))
+            then
+                AnsiConsole.WriteLine("Items denoted with (*) may have some or all coins held externally, and may not accurately be represented here.")
+
+            // TODO communicate multi currency
+            )
+        
+            
         |> TaskResult.mapError (fun e -> printfn "An error has occured: %A" e)
 
     let status = AnsiConsole.Status()

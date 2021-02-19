@@ -13,22 +13,29 @@ module Bitpanda =
 
     let private apiKey =
         Environment.GetEnvironmentVariable("BITPANDA")
-        
-    let private tradeDecoder (bitpandaCoins: Map<int, string>): Decoder<Trade list> =
+
+    let private tradeDecoder (bitpandaCoins: Map<int, string>) (fiatCurrencies: Map<int, string>): Decoder<Trade list> =
         let tradeTypeDecoder =
             Decode.string
             |> Decode.map (function
-                            | "buy" -> Buy
-                            | "sell" -> Sell
-                            | "withdrawal" -> Withdrawal)
+                | "buy" -> Buy
+                | "sell" -> Sell
+                | "withdrawal" -> Withdrawal
+                | _ -> TradeType.Unsupported)
 
         let tradeDecoder =
             Decode.object (fun get ->
                 let symbol =
-                    (bitpandaCoins.[get.Required.At [ "attributes"; "cryptocoin_id" ] Decode.int]).ToUpperInvariant()
-                    
+                    (bitpandaCoins.[get.Required.At [ "attributes"; "cryptocoin_id" ] Decode.int])
+                        .ToUpperInvariant()
+                        
+                let fiatCurrency =
+                    { AmountPaid.Currency = enum<Currency>(get.Required.At ["attributes"; "current_fiat_id"] Decode.int)
+                      Amount = get.Required.At [ "attributes"; "current_fiat_amount" ] Decode.decimal
+                      AmountEur = get.Required.At ["attributes"; "amount_eur"] Decode.decimal }
+                
                 { Trade.Amount = get.Required.At [ "attributes"; "amount" ] Decode.decimal
-                  AmountPaid = get.Required.At [ "attributes"; "current_fiat_amount" ] Decode.decimal
+                  AmountPaid = fiatCurrency
                   Type = get.Required.At [ "attributes"; "type" ] tradeTypeDecoder
                   Cryptocoin =
                       { Cryptocoin.Id = get.Required.At [ "attributes"; "cryptocoin_id" ] Decode.int
@@ -37,7 +44,7 @@ module Bitpanda =
                 })
 
         Decode.field "data" (Decode.list tradeDecoder)
-        
+
     let private coinIdDecoder: Decoder<Map<int, string>> =
         let objDecoder =
             Decode.object (fun get ->
@@ -47,20 +54,31 @@ module Bitpanda =
         let listDecoder = Decode.list objDecoder
         let data = Decode.field "data" listDecoder
         data |> Decode.map (Map.ofList)
-        
+
     let private coinPriceDecoder: Decoder<Map<string, decimal>> =
+        // TODO Support multi currency
         Decode.dict <| Decode.field "EUR" Decode.decimal
-        
-    let private bitpandaRequest resource (query: struct(string * string) list) decoder =
+
+    let private fiatCurrencyDecoder: Decoder<Map<int, string>> =
+        let objDecoder =
+            Decode.object (fun get ->
+                get.Required.At [ "attributes"; "fiat_id" ] Decode.int,
+                get.Required.At [ "attributes"; "fiat_symbol" ] Decode.string)
+
+        let listDecoder = Decode.list objDecoder
+        let data = Decode.field "data" listDecoder
+        data |> Decode.map (Map.ofList)
+
+    let private bitpandaRequest resource (query: struct (string * string) list) decoder =
         let query = struct ("page_size", "100") :: query
-        
+
         GET
         >=> withUrlBuilder (fun (req: HttpRequest) -> $"{baseBitpandaUrl}/{resource}")
         >=> withHeader "X-API-KEY" (if resource = "ticker" then String.Empty else apiKey)
         >=> withQuery query
         >=> fetch
         >=> json decoder
-        
+
     let getAllTransactions () =
         taskResult {
             use client = new HttpClient()
@@ -72,14 +90,18 @@ module Bitpanda =
             let! cryptocoinIdMap =
                 bitpandaRequest "wallets" [] coinIdDecoder
                 |> runAsync ctx
+                
+            and! fiatCurrencies =
+                bitpandaRequest "fiatwallets" [] fiatCurrencyDecoder
+                |> runAsync ctx
 
             let! trades =
-                bitpandaRequest "wallets/transactions" [struct ("status", "finished")] (tradeDecoder cryptocoinIdMap)
+                bitpandaRequest "wallets/transactions" [ struct ("status", "finished") ] (tradeDecoder cryptocoinIdMap fiatCurrencies)
                 |> runAsync ctx
 
             return trades
         }
-        
+
     let getCurrentPrices symbols =
         taskResult {
             use client = new HttpClient()
@@ -87,15 +109,15 @@ module Bitpanda =
             let ctx =
                 Context.defaultContext
                 |> Context.withHttpClient client
-            
-            let! prices = bitpandaRequest "ticker" [] coinPriceDecoder |> runAsync ctx
-            
+
+            let! prices =
+                bitpandaRequest "ticker" [] coinPriceDecoder
+                |> runAsync ctx
+
             let prices =
                 symbols
-                |> Seq.map (fun s ->
-                    s, prices.[s]
-                    )
+                |> Seq.map (fun s -> s, prices.[s])
                 |> Map.ofSeq
-            
+
             return prices
         }
