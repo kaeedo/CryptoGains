@@ -8,15 +8,27 @@ open Spectre.Console.Rendering
 
 [<EntryPoint>]
 let main argv =
-    let run () =
+    Console.OutputEncoding <- System.Text.Encoding.UTF8
+    
+    let getData () =
         taskResult {
             let! transactions = Bitpanda.getAllTransactions ()
             let! assets = Assets.getAssets transactions
-
+            
             let! currentPrices =
                 Bitpanda.getCurrentPrices
                     (assets
                      |> List.map (fun a -> a.Cryptocoin.Symbol))
+                    
+            return assets, currentPrices
+        }
+    
+    let run (fetchResult: Result<(Asset list * Map<string,decimal>),Oryx.HandlerError<obj>>) =
+        taskResult {
+            let! (assets, currentPrices) = fetchResult
+            let assets =
+                assets
+                |> List.map (Wizard.confirmAssetAmount)
 
             return assets, currentPrices
         }
@@ -26,7 +38,9 @@ let main argv =
 
             let totalPricePaid = assets |> Seq.sumBy (fun r -> snd r.PricePaid)
             let totalPricePaidColumn = TableColumn("Total Price Paid")
-            totalPricePaidColumn.Footer <- Text($"{totalPricePaid:N2}") :> IRenderable
+            
+            // TODO fix culture
+            totalPricePaidColumn.Footer <- Text(totalPricePaid.ToString("c", CultureInfo.CurrentCulture)) :> IRenderable
 
             let totalCurrentPrice =
                 assets
@@ -34,10 +48,10 @@ let main argv =
                     let amountOwned = a.AmountOwned
                     let currentPrice = currentPrices.[a.Cryptocoin.Symbol]
                     amountOwned * currentPrice)
-
                 
             let totalCurrentPriceColumn = TableColumn("Current Value")
-            totalCurrentPriceColumn.Footer <- Text($"{totalCurrentPrice:N2}") :> IRenderable
+            // TODO fix culture
+            totalCurrentPriceColumn.Footer <- Text(totalCurrentPrice.ToString("c", CultureInfo.CurrentCulture)) :> IRenderable
 
             let totalPercentChange =
                 let pct = ((totalCurrentPrice / totalPricePaid) - 1M) * 100M
@@ -147,17 +161,17 @@ let main argv =
 
             // TODO communicate multi currency
             )
-        
-            
         |> TaskResult.mapError (fun e -> printfn "An error has occured: %A" e)
 
     let status = AnsiConsole.Status()
     status.Spinner <- Spinner.Known.Dots2
     
-    status
-        .StartAsync("Getting BitPanda data...", fun _ -> run ())
-        .GetAwaiter().GetResult()
-        |> ignore
+    let fetchResult =
+        status
+            .StartAsync("Getting BitPanda data...", fun _ -> getData())
+            .GetAwaiter().GetResult()
+    
+    run fetchResult |> ignore
 
     0 // return an integer exit code
 
