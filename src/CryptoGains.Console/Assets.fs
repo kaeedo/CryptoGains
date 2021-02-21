@@ -7,7 +7,7 @@ type Coin = { Name: string; Prices: Map<string, decimal> }
 
 [<RequireQualifiedAccess>]
 module Assets =
-    let getAssets (transactions: Trade list) =
+    let getAssets (masterData: MasterData) (transactions: Trade list) =
         taskResult {
             let transactions =
                 transactions
@@ -20,7 +20,7 @@ module Assets =
                             
                         let currency =
                             if isMultiCurrency
-                            then Currency.Euro
+                            then masterData.Currencies |> List.find (fun c -> c.Symbol = "EUR")
                             else (trades |> Seq.head).AmountPaid.Currency
                             
                         let singleCurrencyFolder accumulator currentTrade =

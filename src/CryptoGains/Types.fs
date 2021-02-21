@@ -1,19 +1,24 @@
 ﻿namespace CryptoGains
 
+type Cryptocoin =
+    { Id: int
+      Symbol: string
+      Name: string }
+
+type Currency =
+    { Id: int
+      Symbol: string
+      Name: string }
+
+type MasterData =
+    { Currencies: Currency list
+      Cryptocoins: Cryptocoin list }
+
 type TradeType =
     | Buy
     | Sell
     | Withdrawal
     | Unsupported
-
-type Currency =
-    | Euro = 1
-    | UsDollar = 2
-    | SwissFranc = 3
-    | BritishPounds = 4
-    | TurkishLira = 5
-
-type Cryptocoin = { Id: int; Symbol: string }
 
 type AmountPaid =
     { Currency: Currency

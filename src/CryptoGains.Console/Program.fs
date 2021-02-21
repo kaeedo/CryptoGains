@@ -12,23 +12,25 @@ let main argv =
     
     let getData () =
         taskResult {
-            let! transactions = Bitpanda.getAllTransactions ()
-            let! assets = Assets.getAssets transactions
+            let! masterData = Bitpanda.getMasterData ()
             
-            let! currentPrices =
-                Bitpanda.getCurrentPrices
-                    (assets
-                     |> List.map (fun a -> a.Cryptocoin.Symbol))
+            let! transactions = Bitpanda.getAllTransactions masterData
+            and! currentPrices = Bitpanda.getCurrentPrices masterData
+
+            let! assets = Assets.getAssets masterData transactions 
                     
             return assets, currentPrices
         }
     
-    let run (fetchResult: Result<(Asset list * Map<string,decimal>),Oryx.HandlerError<obj>>) =
+    let run (fetchResult: Result<(Asset list * Map<int, Map<string, decimal>>), Oryx.HandlerError<obj>>) =
         taskResult {
             let! (assets, currentPrices) = fetchResult
+            let availableCoins = currentPrices |> Seq.map (fun kvp -> kvp.Key) |> Seq.toArray
+            
             let assets =
                 assets
                 |> List.map (Wizard.confirmAssetAmount)
+                |> List.append (Wizard.addAdditionalCoins availableCoins)
 
             return assets, currentPrices
         }
@@ -46,7 +48,7 @@ let main argv =
                 assets
                 |> Seq.sumBy (fun a ->
                     let amountOwned = a.AmountOwned
-                    let currentPrice = currentPrices.[a.Cryptocoin.Symbol]
+                    let currentPrice = currentPrices.[a.Cryptocoin.Id].["EUR"] // TODO Multicurrency
                     amountOwned * currentPrice)
                 
             let totalCurrentPriceColumn = TableColumn("Current Value")
@@ -55,7 +57,7 @@ let main argv =
 
             let totalPercentChange =
                 let pct = ((totalCurrentPrice / totalPricePaid) - 1M) * 100M
-                if pct >0.0M
+                if pct > 0.0M
                 then $"[green]{pct:N2}%%[/]"
                 else $"[red]{pct:N2}%%[/]"
                 
@@ -66,7 +68,8 @@ let main argv =
                         if diff > 0.0M
                         then "green"
                         else "red"
-                    $"[{color}]{diff:N2}[/]"
+                    let diff = diff.ToString("c", CultureInfo.CurrentCulture)
+                    $"[{color}]{diff}[/]"
                     
             percentChangeColumn.Footer <- Markup($"{difference} ({totalPercentChange:N2})") :> IRenderable
 
@@ -84,7 +87,7 @@ let main argv =
                 assets
                 |> Seq.map (fun a ->
                     let totalCurrentPrice =
-                        let currentPrice = currentPrices.[a.Cryptocoin.Symbol]
+                        let currentPrice = currentPrices.[a.Cryptocoin.Id].["EUR"] // TODO Multicurrency
                         currentPrice * a.AmountOwned
                         
                     (int <| ((totalCurrentPrice / (snd a.PricePaid)) - 1M) * 100M).ToString().Length
@@ -94,7 +97,7 @@ let main argv =
             assets
             |> Seq.iter (fun r ->
                 let totalCurrentPrice =
-                    let currentPrice = currentPrices.[r.Cryptocoin.Symbol]
+                    let currentPrice = currentPrices.[r.Cryptocoin.Id].["EUR"] // TODO Multicurrency
                     currentPrice * r.AmountOwned
                     
                 let culture =
@@ -103,11 +106,11 @@ let main argv =
                         then "de-DE"
                         else
                             match fst r.PricePaid with
-                            | Currency.Euro -> "de-DE"
-                            | Currency.UsDollar -> "en-US"
-                            | Currency.SwissFranc -> "de-CH"
-                            | Currency.BritishPounds -> "en-GB"
-                            | Currency.TurkishLira -> "tr-TR"
+                            | { Currency.Id = _; Symbol = "EUR"; Name = _} -> "de-DE"
+                            | { Currency.Id = _; Symbol = "USD"; Name = _} -> "en-US"
+                            | { Currency.Id = _; Symbol = "CHF"; Name = _} -> "de-CH"
+                            | { Currency.Id = _; Symbol = "GBP"; Name = _} -> "en-GB"
+                            | { Currency.Id = _; Symbol = "TRY"; Name = _} -> "tr-TR"
                             | _ -> "de-DE"
                     CultureInfo(culture)
                         
