@@ -19,18 +19,17 @@ let main argv =
 
             let! assets = Assets.getAssets masterData transactions 
                     
-            return assets, currentPrices
+            return assets, currentPrices, masterData
         }
     
-    let run (fetchResult: Result<(Asset list * Map<int, Map<string, decimal>>), Oryx.HandlerError<obj>>) =
+    let run (fetchResult: Result<(Asset list * Map<int, Map<string, decimal>> * MasterData), Oryx.HandlerError<obj>>) =
         taskResult {
-            let! (assets, currentPrices) = fetchResult
-            let availableCoins = currentPrices |> Seq.map (fun kvp -> kvp.Key) |> Seq.toArray
+            let! (assets, currentPrices, masterData) = fetchResult
             
             let assets =
                 assets
                 |> List.map (Wizard.confirmAssetAmount)
-                |> List.append (Wizard.addAdditionalCoins availableCoins)
+                |> List.append (Wizard.addAdditionalCoins masterData)
 
             return assets, currentPrices
         }
@@ -149,7 +148,7 @@ let main argv =
                 let totalCurrentPrice = (totalCurrentPrice).ToString("c", culture)
 
                 table.AddRow
-                    ([| Text($"{hasNotes} {r.Cryptocoin.Symbol}") :> IRenderable
+                    ([| Text($"{hasNotes} ({r.Cryptocoin.Symbol}) {r.Cryptocoin.Name}") :> IRenderable
                         Text($"{r.AmountOwned}") :> IRenderable
                         Text($"{pricePaid}") :> IRenderable
                         Text($"{totalCurrentPrice}") :> IRenderable
