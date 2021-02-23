@@ -1,8 +1,8 @@
 ﻿open System
 open System.Globalization
-open System.Text.RegularExpressions
 open CryptoGains
 open CryptoGains.Console
+open FsToolkit.ErrorHandling.Operator.TaskResult
 open Spectre.Console
 open FsToolkit.ErrorHandling
 open Spectre.Console.Rendering
@@ -139,12 +139,17 @@ let main argv =
             let (totalCurrentValueCulture, totalCurrentValue) =
                 calculateTotalCurrentValue masterData currentPrices assets
 
-            let totalCurrentPriceColumn = TableColumn("Current Value")
+            let totalCurrentPriceColumn = TableColumn("Total Current Value")
 
             totalCurrentPriceColumn.Footer <-
                 Text(totalCurrentValue.ToString("c", totalCurrentValueCulture)) :> IRenderable
 
             let percentChangeColumn = TableColumn("Change")
+
+            percentChangeColumn.Footer <-
+                Markup($"{calculatePercentChange totalCurrentValue totalPricePaid}") :> IRenderable
+
+            let differenceColumn = TableColumn(String.Empty)
 
             let difference =
                 let diff = (totalCurrentValue - totalPricePaid)
@@ -157,17 +162,20 @@ let main argv =
 
                 $"[{color}]{diff}[/]"
 
-            percentChangeColumn.Footer <-
-                Markup($"{difference} ({calculatePercentChange totalCurrentValue totalPricePaid})") :> IRenderable
+            differenceColumn.Footer <- Markup($"{difference}") :> IRenderable
+
+
+            //{difference}
 
             table.AddColumn("Coin") |> ignore
             table.AddColumn("Amount Owned") |> ignore
             table.AddColumn(totalPricePaidColumn) |> ignore
             table.AddColumn("Current Price") |> ignore
             table.AddColumn(totalCurrentPriceColumn) |> ignore
+            table.AddColumn(differenceColumn) |> ignore
             table.AddColumn(percentChangeColumn) |> ignore
 
-            [ 1 .. 5 ]
+            [ 1 .. 6 ]
             |> Seq.iter (fun i -> table.Columns.[i].RightAligned() |> ignore)
 
             table.Columns.[5].PadLeft(5) |> ignore
@@ -193,33 +201,6 @@ let main argv =
                     let diff = diff.ToString("c", culture)
                     $"[{color}]{diff}[/]"
 
-                let padding =
-                    let getPercentLength text =
-                        let regexMatch =
-                            Regex.Match(text, "\[(red|green)\](.+)\[\/\]")
-
-                        regexMatch.Groups.[2].Value.Length
-
-                    let longest =
-                        assets
-                        |> Seq.map (fun a ->
-                            let totalCurrentValue =
-                                let currentPrice =
-                                    currentPrices.[a.Cryptocoin.Id].[(fst a.PricePaid).Symbol]
-
-                                currentPrice * a.AmountOwned
-
-                            getPercentLength (calculatePercentChange totalCurrentValue totalPricePaid))
-                        |> Seq.max
-
-                    let amountNeeded =
-                        let currentLength =
-                            getPercentLength (calculatePercentChange totalCurrentValue (snd r.PricePaid))
-
-                        longest - currentLength
-
-                    String.replicate (if amountNeeded < 1 then 1 else amountNeeded) " "
-
                 let hasNotes =
                     if r.Properties
                        |> List.contains (Property.HasExternalAmount) then
@@ -234,7 +215,7 @@ let main argv =
 
                 let totalCurrentPrice =
                     (totalCurrentValue).ToString("c", culture)
-                    
+
                 let currentPrice = currentPrice.ToString("c", culture)
 
                 table.AddRow
@@ -243,7 +224,8 @@ let main argv =
                         Text($"{pricePaid}") :> IRenderable
                         Text($"{currentPrice}") :> IRenderable
                         Text($"{totalCurrentPrice}") :> IRenderable
-                        Markup($"{difference}{padding}({percentChange})") :> IRenderable |])
+                        Markup($"{difference}") :> IRenderable
+                        Markup($"{percentChange}") :> IRenderable |])
                 |> ignore)
 
             AnsiConsole.Render(table)
@@ -259,8 +241,6 @@ let main argv =
                 ("If a mix of currencies exists in any calculations, then all values are converted to Euro (€) first, using the conversion rate as specified by BitPanda"))
         |> TaskResult.mapError (fun e -> printfn "An error has occured: %A" e)
 
-    
-
     let apiKey =
         if String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BITPANDA")) then
             if not (configuration.GetConfiguration()).IsConfigured then
@@ -273,27 +253,71 @@ let main argv =
                 (configuration.GetConfiguration()).ApiKey
         else
             Environment.GetEnvironmentVariable("BITPANDA")
-    
+
     let fetchResult () =
         let status = AnsiConsole.Status()
         status.Spinner <- Spinner.Known.Dots2
+
         status
             .StartAsync("Getting BitPanda data...", (fun _ -> getData apiKey))
             .GetAwaiter()
             .GetResult()
 
-    if argv |> Array.contains("-h") || argv |> Array.contains("--help")
-    then
-        printfn "help"
+    if argv |> Array.contains ("-h")
+       || argv |> Array.contains ("--help") then
+        printfn
+            "Simple command line tool to view basic portfolio information about cryptocurrencies held in BitPanda, but also elsewhere."
+
+        printfn "The information presented is only meant for a quick overview, and accuracy is not guaranteed."
+        printfn "This project is not affiliated with BitPanda in any way."
+        printfn ""
+        printfn "Additional documentation can be found at: https://github.com/kaeedo/CryptoGains/blob/master/README.md"
+        printfn ""
+
+        printfn
+            "To run, requires an API key from BitPanda with the \"Transaction\" scope defined. To create an API key, go to your profile page within BitPanda and click on API Key."
+
+        printfn
+            "This API key should be set within an Environment Variable called \"BITPANDA\". Alternatively, you will be prompted for it during first time setup, and then will be saved in plaintext."
+
+        printfn ""
+        printfn "-h | --help to view this help"
+        printfn "-v | --version to view version number information, and check for latest version available online"
+        printfn "-u | --update-configuration to reconfigure the app when you have previously configured it."
+
         0
-    elif argv |> Array.contains("-v") || argv |> Array.contains("--version")
-    then
-        printfn "version"
+    elif argv |> Array.contains ("-v")
+         || argv |> Array.contains ("--version") then
+        let version =
+            Reflection
+                .Assembly
+                .GetEntryAssembly()
+                .GetName()
+                .Version.ToString(3)
+
+        printfn $"CryptoGains version: {version}"
+
+        let status = AnsiConsole.Status()
+        status.Spinner <- Spinner.Known.Dots2
+
+        let _ =
+            status
+                .Start("Getting latest release...",
+                            (fun _ ->
+                                GitHub.getLatestVersion ()
+                                |> TaskResult.map (fun v ->
+                                    printfn $"Latest available version: {v}"
+                                    printfn $"Download at: https://github.com/kaeedo/CryptoGains/releases/latest")))
+                .GetAwaiter()
+                .GetResult()
+                
         0
-    elif argv |> Array.contains("-u") || argv |> Array.contains("--update-configuration")
-    then
-        printfn "update config"
+    elif argv |> Array.contains ("-u")
+         || argv |> Array.contains ("--update-configuration") then
+        configuration.ResetConfiguration()
+        configuration.WriteConfiguration()
+        run (fetchResult ()) |> ignore
         0
     else
-        printfn "running"//run (fetchResult ()) |> ignore
+        run (fetchResult ()) |> ignore
         0

@@ -20,21 +20,6 @@ type ConfigurationFile =
       ExternallyHeld: ExternallyHeldCryptocoin list
       ApiKey: string
       IsConfigured: bool }
-    
-//type CommandLine() =
-//    inherit CommandSettings()
-//    
-//    [<CommandOption("-v|--version")>]
-//    member val Version = false with get, set
-//    
-//    [<CommandOption("-u|--update")>]
-//    member val ForceUpdate = false with get, set
-//    
-//type CommandLineCommand() =
-//    inherit Command<CommandLine>()
-//    override this.Execute(context: CommandContext, settings: CommandLine) =
-//        settings.Version, settings.ForceUpdate
-        
 
 type Configuration() =
     let mutable apiKey = String.Empty
@@ -76,6 +61,12 @@ type Configuration() =
     member this.SetWithdrawnCryptocoins value = withdrawnCryptocoins <- value
 
     member this.SetExternallyHeld value = externallyHeld <- value
+
+    member this.ResetConfiguration() =
+        apiKey <- String.Empty
+        withdrawnCryptocoins <- []
+        externallyHeld <- []
+        isConfigured <- false
 
     member this.GetConfiguration() =
         { ConfigurationFile.ApiKey = apiKey

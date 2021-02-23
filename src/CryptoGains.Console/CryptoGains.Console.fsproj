@@ -1,36 +1,30 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFramework>net5.0</TargetFramework>
         <RootNamespace>CryptoGains</RootNamespace>
-        <PackageId>CryptoGains</PackageId>
-        <Version>1.1.0</Version>
+        <PackageId>CryptoGains.Console</PackageId>
+        <Version>1.0.0</Version>
         <Authors>Kai Ito</Authors>
         <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
         <PackageTags>F#;Cryptocurrency;Portfolio</PackageTags>
-        <IncludeSymbols>true</IncludeSymbols>
-        <IncludeSource>true</IncludeSource>
         <PackageProjectUrl>https://github.com/kaeedo/CryptoGains/</PackageProjectUrl>
         <RepositoryUrl>https://github.com/kaeedo/CryptoGains</RepositoryUrl>
         <PackageReleaseNotes>https://github.com/kaeedo/CryptoGains/blob/master/CHANGELOG.md</PackageReleaseNotes>
     </PropertyGroup>
-
     <ItemGroup>
-        <Compile Include="Assets.fs" />
-        <Compile Include="Configuration.fs" />
-        <Compile Include="Wizard.fs" />
-        <Compile Include="Program.fs" />
+        <Compile Include="Assets.fs"/>
+        <Compile Include="Configuration.fs"/>
+        <Compile Include="Wizard.fs"/>
+        <Compile Include="GitHub.fs"/>
+        <Compile Include="Program.fs"/>
     </ItemGroup>
-
     <ItemGroup>
-      <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="2.0.0" />
-      <PackageReference Include="Ply" Version="0.3.1" />
-      <PackageReference Include="Spectre.Console" Version="0.37.0" />
+        <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="2.0.0"/>
+        <PackageReference Include="Ply" Version="0.3.1"/>
+        <PackageReference Include="Spectre.Console" Version="0.37.0"/>
     </ItemGroup>
-
     <ItemGroup>
-      <ProjectReference Include="..\CryptoGains\CryptoGains.fsproj" />
+        <ProjectReference Include="..\CryptoGains\CryptoGains.fsproj"/>
     </ItemGroup>
-
 </Project>
