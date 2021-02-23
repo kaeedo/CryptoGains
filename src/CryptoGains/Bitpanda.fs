@@ -11,9 +11,6 @@ open Thoth.Json.Net
 module Bitpanda =
     let private baseBitpandaUrl = "https://api.bitpanda.com/v1"
 
-    let private apiKey =
-        Environment.GetEnvironmentVariable("BITPANDA")
-
     let masterDataDecoder =
         let currencies =
             let currencyObjDecoder =
@@ -26,9 +23,17 @@ module Bitpanda =
                     let symbol =
                         get.Required.At [ "attributes"; "symbol" ] Decode.string
 
+                    let toEuroRate =
+                        get.Required.At [ "attributes"; "to_eur_rate" ] Decode.decimal
+
+                    let hasWallets =
+                        get.Required.At [ "attributes"; "has_wallets" ] Decode.bool
+
                     { Currency.Id = id
                       Name = name
-                      Symbol = symbol })
+                      Symbol = symbol
+                      ToEurRate = toEuroRate },
+                    hasWallets)
 
             Decode.list currencyObjDecoder
 
@@ -52,6 +57,9 @@ module Bitpanda =
         Decode.object (fun get ->
             let currencies =
                 get.Required.At [ "data"; "attributes"; "fiats" ] currencies
+
+            let currencies =
+                currencies |> List.filter (snd) |> List.map (fst)
 
             let cryptocoins =
                 get.Required.At [ "data"; "attributes"; "cryptocoins" ] cryptocoins
@@ -115,20 +123,6 @@ module Bitpanda =
             |> Seq.map (fun (coin, prices) -> coin.Value.Id, prices)
             |> Map.ofSeq)
 
-    let private bitpandaRequest resource (query: struct (string * string) list) decoder =
-        let query = struct ("page_size", "100") :: query
-
-        GET
-        >=> withUrlBuilder (fun (req: HttpRequest) -> $"{baseBitpandaUrl}/{resource}")
-        >=> withHeader
-                "X-API-KEY"
-                (if resource = "ticker" || resource = "masterdataa"
-                 then String.Empty
-                 else apiKey)
-        >=> withQuery query
-        >=> fetch
-        >=> json decoder
-
     let getMasterData () =
         taskResult {
             use client = new HttpClient()
@@ -136,24 +130,32 @@ module Bitpanda =
             let ctx =
                 Context.defaultContext
                 |> Context.withHttpClient client
-
+                
             let! masterData =
-                bitpandaRequest "masterdata" [] masterDataDecoder
+                GET
+                >=> withUrlBuilder (fun (req: HttpRequest) -> $"{baseBitpandaUrl}/masterdata")
+                >=> fetch
+                >=> json masterDataDecoder
                 |> runAsync ctx
 
             return masterData
         }
 
-    let getAllTransactions masterData =
+    let getAllTransactions masterData apiKey =
         taskResult {
             use client = new HttpClient()
 
             let ctx =
                 Context.defaultContext
                 |> Context.withHttpClient client
-
+            
             let! trades =
-                bitpandaRequest "wallets/transactions" [ struct ("status", "finished") ] (tradeDecoder masterData)
+                GET
+                >=> withUrlBuilder (fun (req: HttpRequest) -> $"{baseBitpandaUrl}/wallets/transactions")
+                >=> withHeader "X-API-KEY" apiKey
+                >=> withQuery [ struct ("page_size", "100"); struct ("status", "finished") ]
+                >=> fetch
+                >=> json (tradeDecoder masterData)   
                 |> runAsync ctx
 
             return trades
@@ -168,7 +170,10 @@ module Bitpanda =
                 |> Context.withHttpClient client
 
             let! prices =
-                bitpandaRequest "ticker" [] (coinPriceDecoder masterData)
+                GET
+                >=> withUrlBuilder (fun (req: HttpRequest) -> $"{baseBitpandaUrl}/ticker")
+                >=> fetch
+                >=> json (coinPriceDecoder masterData)
                 |> runAsync ctx
 
             return prices

@@ -1,10 +1,20 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "CryptoGains.Console", "src\CryptoGains.Console\CryptoGains.Console.fsproj", "{A5D5060F-E036-45E7-8885-0117A5B6729A}"
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31004.235
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "CryptoGains.Console", "src\CryptoGains.Console\CryptoGains.Console.fsproj", "{A5D5060F-E036-45E7-8885-0117A5B6729A}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{83D17500-82F7-44C7-AB67-C6337161A490}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "CryptoGains", "src\CryptoGains\CryptoGains.fsproj", "{DBC0C8FC-E123-4FDB-8B84-15CB34448744}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "CryptoGains", "src\CryptoGains\CryptoGains.fsproj", "{DBC0C8FC-E123-4FDB-8B84-15CB34448744}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{F1D60115-8034-4857-A6C8-411F50A747B4}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+		CHANGELOG.md = CHANGELOG.md
+		updateVersion.fsx = updateVersion.fsx
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,8 +31,14 @@ Global
 		{DBC0C8FC-E123-4FDB-8B84-15CB34448744}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DBC0C8FC-E123-4FDB-8B84-15CB34448744}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A5D5060F-E036-45E7-8885-0117A5B6729A} = {83D17500-82F7-44C7-AB67-C6337161A490}
 		{DBC0C8FC-E123-4FDB-8B84-15CB34448744} = {83D17500-82F7-44C7-AB67-C6337161A490}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C8E3CFCB-A2DD-414D-85BB-3E278B2FAB0F}
 	EndGlobalSection
 EndGlobal

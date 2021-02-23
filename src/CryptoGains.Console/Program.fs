@@ -1,179 +1,299 @@
 ﻿open System
 open System.Globalization
+open System.Text.RegularExpressions
 open CryptoGains
 open CryptoGains.Console
 open Spectre.Console
 open FsToolkit.ErrorHandling
 open Spectre.Console.Rendering
 
+let getCulture =
+    function
+    | { Currency.Symbol = "EUR" } -> CultureInfo("de-DE")
+    | { Currency.Symbol = "USD" } -> CultureInfo("en-US")
+    | { Currency.Symbol = "CHF" } -> CultureInfo("de-CH")
+    | { Currency.Symbol = "GBP" } -> CultureInfo("en-GB")
+    | { Currency.Symbol = "TRY" } -> CultureInfo("tr-TR")
+    | _ -> CultureInfo("de-DE")
+
+let calculateTotalPricePaid (masterData: MasterData) (assets: Asset list) =
+    let isMultiCurrency =
+        (assets
+         |> List.map (fun a -> fst a.PricePaid)
+         |> List.distinct)
+            .Length > 1
+
+    if isMultiCurrency then
+        let euro =
+            masterData.Currencies
+            |> List.find (fun c -> c.Symbol = "EUR")
+
+        let assets =
+            assets
+            |> List.map (fun a ->
+                let amountInEur =
+                    let (currency, amountPaid) = a.PricePaid
+                    amountPaid * currency.ToEurRate
+
+                { a with
+                      PricePaid = (euro, amountInEur) })
+
+        getCulture euro, assets |> List.sumBy (fun a -> snd a.PricePaid)
+    else
+        let currency = fst (assets |> List.head).PricePaid
+        getCulture currency, assets |> List.sumBy (fun a -> snd a.PricePaid)
+
+let calculateTotalCurrentValue masterData (currentPrices: Map<int, Map<string, decimal>>) assets =
+    let isMultiCurrency =
+        (assets
+         |> List.map (fun a -> fst a.PricePaid)
+         |> List.distinct)
+            .Length > 1
+
+    if isMultiCurrency then
+        let euro =
+            masterData.Currencies
+            |> List.find (fun c -> c.Symbol = "EUR")
+
+        let totalCurrentValue =
+            assets
+            |> List.sumBy (fun a ->
+                let amountOwned = a.AmountOwned
+                let (currency, _) = a.PricePaid
+
+                let currentPrice =
+                    currentPrices.[a.Cryptocoin.Id].[currency.Symbol]
+
+                amountOwned * currentPrice * currency.ToEurRate)
+
+        getCulture euro, totalCurrentValue
+    else
+        let currency = fst (assets |> List.head).PricePaid
+
+        let totalCurrentValue =
+            assets
+            |> List.sumBy (fun a ->
+                let amountOwned = a.AmountOwned
+                let (currency, _) = a.PricePaid
+
+                let currentPrice =
+                    currentPrices.[a.Cryptocoin.Id].[currency.Symbol]
+
+                amountOwned * currentPrice)
+
+        getCulture currency, totalCurrentValue
+
+let calculatePercentChange current total =
+    let pct = ((current / total) - 1M)
+
+    let color = if pct >= 0.0M then "green" else "red"
+
+    let pct =
+        pct.ToString("P2", CultureInfo.CurrentCulture)
+
+    $"[{color}]{pct}[/]"
+
 [<EntryPoint>]
 let main argv =
     Console.OutputEncoding <- System.Text.Encoding.UTF8
-    
-    let getData () =
+
+    let configuration =
+        CryptoGains.Console.Configuration.Configuration()
+
+    let getData apiKey =
         taskResult {
             let! masterData = Bitpanda.getMasterData ()
-            
-            let! transactions = Bitpanda.getAllTransactions masterData
+
+            let! transactions = Bitpanda.getAllTransactions masterData apiKey
             and! currentPrices = Bitpanda.getCurrentPrices masterData
 
-            let! assets = Assets.getAssets masterData transactions 
-                    
+            let! assets = Assets.getAssets masterData transactions
+
             return assets, currentPrices, masterData
         }
-    
+
     let run (fetchResult: Result<(Asset list * Map<int, Map<string, decimal>> * MasterData), Oryx.HandlerError<obj>>) =
         taskResult {
             let! (assets, currentPrices, masterData) = fetchResult
-            
+
             let assets =
                 assets
-                |> List.map (Wizard.confirmAssetAmount)
-                |> List.append (Wizard.addAdditionalCoins masterData)
+                |> List.map (Wizard.confirmAssetAmount configuration)
+                |> List.append (Wizard.addAdditionalCoins configuration masterData)
 
-            return assets, currentPrices
+            configuration.WriteConfiguration()
+
+            return assets, currentPrices, masterData
         }
-        |> TaskResult.map (fun (assets, currentPrices) ->
+        |> TaskResult.map (fun (assets, currentPrices, masterData) ->
             let table = Table()
             table.Border <- TableBorder.SimpleHeavy
 
-            let totalPricePaid = assets |> Seq.sumBy (fun r -> snd r.PricePaid)
+            let (culture, totalPricePaid) =
+                calculateTotalPricePaid masterData assets
+
             let totalPricePaidColumn = TableColumn("Total Price Paid")
-            
-            // TODO fix culture
-            totalPricePaidColumn.Footer <- Text(totalPricePaid.ToString("c", CultureInfo.CurrentCulture)) :> IRenderable
 
-            let totalCurrentPrice =
-                assets
-                |> Seq.sumBy (fun a ->
-                    let amountOwned = a.AmountOwned
-                    let currentPrice = currentPrices.[a.Cryptocoin.Id].["EUR"] // TODO Multicurrency
-                    amountOwned * currentPrice)
-                
+            totalPricePaidColumn.Footer <- Text(totalPricePaid.ToString("c", culture)) :> IRenderable
+
+            let (totalCurrentValueCulture, totalCurrentValue) =
+                calculateTotalCurrentValue masterData currentPrices assets
+
             let totalCurrentPriceColumn = TableColumn("Current Value")
-            // TODO fix culture
-            totalCurrentPriceColumn.Footer <- Text(totalCurrentPrice.ToString("c", CultureInfo.CurrentCulture)) :> IRenderable
 
-            let totalPercentChange =
-                let pct = ((totalCurrentPrice / totalPricePaid) - 1M) * 100M
-                if pct > 0.0M
-                then $"[green]{pct:N2}%%[/]"
-                else $"[red]{pct:N2}%%[/]"
-                
+            totalCurrentPriceColumn.Footer <-
+                Text(totalCurrentValue.ToString("c", totalCurrentValueCulture)) :> IRenderable
+
             let percentChangeColumn = TableColumn("Change")
+
             let difference =
-                    let diff = (totalCurrentPrice - totalPricePaid)
-                    let color =
-                        if diff > 0.0M
-                        then "green"
-                        else "red"
-                    let diff = diff.ToString("c", CultureInfo.CurrentCulture)
-                    $"[{color}]{diff}[/]"
-                    
-            percentChangeColumn.Footer <- Markup($"{difference} ({totalPercentChange:N2})") :> IRenderable
+                let diff = (totalCurrentValue - totalPricePaid)
+                let color = if diff > 0.0M then "green" else "red"
+
+                let culture =
+                    if culture = totalCurrentValueCulture then culture else CultureInfo("de-DE")
+
+                let diff = diff.ToString("c", culture)
+
+                $"[{color}]{diff}[/]"
+
+            percentChangeColumn.Footer <-
+                Markup($"{difference} ({calculatePercentChange totalCurrentValue totalPricePaid})") :> IRenderable
 
             table.AddColumn("Coin") |> ignore
             table.AddColumn("Amount Owned") |> ignore
             table.AddColumn(totalPricePaidColumn) |> ignore
+            table.AddColumn("Current Price") |> ignore
             table.AddColumn(totalCurrentPriceColumn) |> ignore
             table.AddColumn(percentChangeColumn) |> ignore
 
-            [ 1 .. 4 ]
+            [ 1 .. 5 ]
             |> Seq.iter (fun i -> table.Columns.[i].RightAligned() |> ignore)
-            table.Columns.[4].PadLeft(5) |> ignore
-            
-            let longest =
-                assets
-                |> Seq.map (fun a ->
-                    let totalCurrentPrice =
-                        let currentPrice = currentPrices.[a.Cryptocoin.Id].["EUR"] // TODO Multicurrency
-                        currentPrice * a.AmountOwned
-                        
-                    (int <| ((totalCurrentPrice / (snd a.PricePaid)) - 1M) * 100M).ToString().Length
-                    )
-                |> Seq.max
+
+            table.Columns.[5].PadLeft(5) |> ignore
 
             assets
             |> Seq.iter (fun r ->
-                let totalCurrentPrice =
-                    let currentPrice = currentPrices.[r.Cryptocoin.Id].["EUR"] // TODO Multicurrency
-                    currentPrice * r.AmountOwned
-                    
+                let currentPrice =
+                    currentPrices.[r.Cryptocoin.Id].[(fst r.PricePaid).Symbol]
+
+                let totalCurrentValue = currentPrice * r.AmountOwned
+
                 let culture =
-                    let culture =
-                        if r.Properties |> List.contains(Property.IsMultiCurrency)
-                        then "de-DE"
-                        else
-                            match fst r.PricePaid with
-                            | { Currency.Id = _; Symbol = "EUR"; Name = _} -> "de-DE"
-                            | { Currency.Id = _; Symbol = "USD"; Name = _} -> "en-US"
-                            | { Currency.Id = _; Symbol = "CHF"; Name = _} -> "de-CH"
-                            | { Currency.Id = _; Symbol = "GBP"; Name = _} -> "en-GB"
-                            | { Currency.Id = _; Symbol = "TRY"; Name = _} -> "tr-TR"
-                            | _ -> "de-DE"
-                    CultureInfo(culture)
-                        
-                let percentChange =
-                    let pct = ((totalCurrentPrice / (snd r.PricePaid)) - 1M) * 100M
-                    let color =
-                        if pct > 0.0M
-                        then "green"
-                        else "red"
-                    $"[{color}]{pct:N2}%%[/]"
-                    
+                    if r.Properties
+                       |> List.contains (Property.IsMultiCurrency) then
+                        CultureInfo("de-DE")
+                    else
+                        getCulture (fst r.PricePaid)
+
                 let difference =
-                    let diff = (totalCurrentPrice - (snd r.PricePaid))
-                    let color =
-                        if diff > 0.0M
-                        then "green"
-                        else "red"
+                    let diff = (totalCurrentValue - (snd r.PricePaid))
+                    let color = if diff > 0.0M then "green" else "red"
 
                     let diff = diff.ToString("c", culture)
                     $"[{color}]{diff}[/]"
-                   
-                let padding =                        
+
+                let padding =
+                    let getPercentLength text =
+                        let regexMatch =
+                            Regex.Match(text, "\[(red|green)\](.+)\[\/\]")
+
+                        regexMatch.Groups.[2].Value.Length
+
+                    let longest =
+                        assets
+                        |> Seq.map (fun a ->
+                            let totalCurrentValue =
+                                let currentPrice =
+                                    currentPrices.[a.Cryptocoin.Id].[(fst a.PricePaid).Symbol]
+
+                                currentPrice * a.AmountOwned
+
+                            getPercentLength (calculatePercentChange totalCurrentValue totalPricePaid))
+                        |> Seq.max
+
                     let amountNeeded =
                         let currentLength =
-                            (int <| ((totalCurrentPrice / (snd r.PricePaid)) - 1M) * 100M).ToString().Length
-                        longest - currentLength + 1
-                        
-                    String.replicate amountNeeded " "
-                    
+                            getPercentLength (calculatePercentChange totalCurrentValue (snd r.PricePaid))
+
+                        longest - currentLength
+
+                    String.replicate (if amountNeeded < 1 then 1 else amountNeeded) " "
+
                 let hasNotes =
-                    if r.Properties |> List.contains (Property.HasExternalAmount)
-                    then "*"
-                    else String.Empty
-                    
+                    if r.Properties
+                       |> List.contains (Property.HasExternalAmount) then
+                        "*"
+                    else
+                        String.Empty
+
                 let pricePaid = (snd r.PricePaid).ToString("c", culture)
-                let totalCurrentPrice = (totalCurrentPrice).ToString("c", culture)
+
+                let percentChange =
+                    calculatePercentChange totalCurrentValue (snd r.PricePaid)
+
+                let totalCurrentPrice =
+                    (totalCurrentValue).ToString("c", culture)
+                    
+                let currentPrice = currentPrice.ToString("c", culture)
 
                 table.AddRow
                     ([| Text($"{hasNotes} ({r.Cryptocoin.Symbol}) {r.Cryptocoin.Name}") :> IRenderable
                         Text($"{r.AmountOwned}") :> IRenderable
                         Text($"{pricePaid}") :> IRenderable
+                        Text($"{currentPrice}") :> IRenderable
                         Text($"{totalCurrentPrice}") :> IRenderable
-                        Markup($"{difference}{padding}({percentChange:N2})") :> IRenderable |])
+                        Markup($"{difference}{padding}({percentChange})") :> IRenderable |])
                 |> ignore)
 
             AnsiConsole.Render(table)
 
-            if assets |> Seq.exists (fun a -> a.Properties |> List.contains (Property.HasExternalAmount))
-            then
-                AnsiConsole.WriteLine("Items denoted with (*) may have some or all coins held externally, and may not accurately be represented here.")
+            if assets
+               |> Seq.exists (fun a ->
+                   a.Properties
+                   |> List.contains (Property.HasExternalAmount)) then
+                AnsiConsole.WriteLine
+                    ("Items denoted with (*) may have some or all coins held externally, and may not accurately be represented here")
 
-            // TODO communicate multi currency
-            )
+            AnsiConsole.WriteLine
+                ("If a mix of currencies exists in any calculations, then all values are converted to Euro (€) first, using the conversion rate as specified by BitPanda"))
         |> TaskResult.mapError (fun e -> printfn "An error has occured: %A" e)
 
-    let status = AnsiConsole.Status()
-    status.Spinner <- Spinner.Known.Dots2
     
-    let fetchResult =
+
+    let apiKey =
+        if String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BITPANDA")) then
+            if not (configuration.GetConfiguration()).IsConfigured then
+                let apiKey =
+                    AnsiConsole.Ask<string>("BitPanda API Key: ")
+
+                configuration.SetApiKey(apiKey)
+                apiKey
+            else
+                (configuration.GetConfiguration()).ApiKey
+        else
+            Environment.GetEnvironmentVariable("BITPANDA")
+    
+    let fetchResult () =
+        let status = AnsiConsole.Status()
+        status.Spinner <- Spinner.Known.Dots2
         status
-            .StartAsync("Getting BitPanda data...", fun _ -> getData())
-            .GetAwaiter().GetResult()
-    
-    run fetchResult |> ignore
+            .StartAsync("Getting BitPanda data...", (fun _ -> getData apiKey))
+            .GetAwaiter()
+            .GetResult()
 
-    0 // return an integer exit code
-
+    if argv |> Array.contains("-h") || argv |> Array.contains("--help")
+    then
+        printfn "help"
+        0
+    elif argv |> Array.contains("-v") || argv |> Array.contains("--version")
+    then
+        printfn "version"
+        0
+    elif argv |> Array.contains("-u") || argv |> Array.contains("--update-configuration")
+    then
+        printfn "update config"
+        0
+    else
+        printfn "running"//run (fetchResult ()) |> ignore
+        0

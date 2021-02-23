@@ -8,7 +8,8 @@ type Cryptocoin =
 type Currency =
     { Id: int
       Symbol: string
-      Name: string }
+      Name: string
+      ToEurRate: decimal }
 
 type MasterData =
     { Currencies: Currency list
