@@ -1,30 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk">
-    <PropertyGroup>
-        <OutputType>Exe</OutputType>
-        <TargetFramework>net5.0</TargetFramework>
-        <RootNamespace>CryptoGains</RootNamespace>
-        <PackageId>CryptoGains.Console</PackageId>
-        <Version>1.0.0</Version>
-        <Authors>Kai Ito</Authors>
-        <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
-        <PackageTags>F#;Cryptocurrency;Portfolio</PackageTags>
-        <PackageProjectUrl>https://github.com/kaeedo/CryptoGains/</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/kaeedo/CryptoGains</RepositoryUrl>
-        <PackageReleaseNotes>https://github.com/kaeedo/CryptoGains/blob/master/CHANGELOG.md</PackageReleaseNotes>
-    </PropertyGroup>
-    <ItemGroup>
-        <Compile Include="Assets.fs"/>
-        <Compile Include="Configuration.fs"/>
-        <Compile Include="Wizard.fs"/>
-        <Compile Include="GitHub.fs"/>
-        <Compile Include="Program.fs"/>
-    </ItemGroup>
-    <ItemGroup>
-        <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="2.0.0"/>
-        <PackageReference Include="Ply" Version="0.3.1"/>
-        <PackageReference Include="Spectre.Console" Version="0.37.0"/>
-    </ItemGroup>
-    <ItemGroup>
-        <ProjectReference Include="..\CryptoGains\CryptoGains.fsproj"/>
-    </ItemGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <RootNamespace>CryptoGains</RootNamespace>
+    <PackageId>CryptoGains.Console</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Kai Ito</Authors>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageTags>F#;Cryptocurrency;Portfolio</PackageTags>
+    <PackageProjectUrl>https://github.com/kaeedo/CryptoGains/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/kaeedo/CryptoGains</RepositoryUrl>
+    <PackageReleaseNotes>https://github.com/kaeedo/CryptoGains/blob/master/CHANGELOG.md</PackageReleaseNotes>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Assets.fs" />
+    <Compile Include="Configuration.fs" />
+    <Compile Include="Wizard.fs" />
+    <Compile Include="GitHub.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FsToolkit.ErrorHandling.TaskResult" Version="2.0.0" />
+    <PackageReference Include="Ply" Version="0.3.1" />
+    <PackageReference Include="Spectre.Console" Version="0.37.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CryptoGains\CryptoGains.fsproj" />
+  </ItemGroup>
 </Project>
