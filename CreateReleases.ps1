@@ -6,10 +6,10 @@ dotnet publish -r win-x64 -c Release -p:PublishSingleFile=true --self-contained 
 mv "./output/CryptoGains.Console.exe" "./output/CryptoGains.windows.${version}.exe"
 
 dotnet publish -r linux-x64 -c Release -p:PublishSingleFile=true --self-contained true -o "./output" .\src\CryptoGains.Console\CryptoGains.Console.fsproj
-mv "./output/CryptoGains.Console" "./output/CryptoGains.linux.${version}.exe"
+mv "./output/CryptoGains.Console" "./output/CryptoGains.linux.${version}"
 
 dotnet publish -r osx-x64 -c Release -p:PublishSingleFile=true --self-contained true -o "./output" .\src\CryptoGains.Console\CryptoGains.Console.fsproj
-mv "./output/CryptoGains.Console" "./output/CryptoGains.mac.${version}.exe"
+mv "./output/CryptoGains.Console" "./output/CryptoGains.mac.${version}"
 
 Remove-Item "./output/*.pdb"
 

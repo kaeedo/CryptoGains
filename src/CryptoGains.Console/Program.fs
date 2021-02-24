@@ -2,6 +2,7 @@
 open System.Globalization
 open CryptoGains
 open CryptoGains.Console
+open CryptoGains.Console.Configuration
 open FsToolkit.ErrorHandling.Operator.TaskResult
 open Spectre.Console
 open FsToolkit.ErrorHandling
@@ -43,7 +44,7 @@ let calculateTotalPricePaid (masterData: MasterData) (assets: Asset list) =
         let currency = fst (assets |> List.head).PricePaid
         getCulture currency, assets |> List.sumBy (fun a -> snd a.PricePaid)
 
-let calculateTotalCurrentValue masterData (currentPrices: Map<int, Map<string, decimal>>) assets =
+let calculateTotalCurrentValue masterData (currentPrices: Map<int, Map<string, decimal>>) (assets: Asset list) =
     let isMultiCurrency =
         (assets
          |> List.map (fun a -> fst a.PricePaid)
@@ -164,9 +165,6 @@ let main argv =
 
             differenceColumn.Footer <- Markup($"{difference}") :> IRenderable
 
-
-            //{difference}
-
             table.AddColumn("Coin") |> ignore
             table.AddColumn("Amount Owned") |> ignore
             table.AddColumn(totalPricePaidColumn) |> ignore
@@ -241,25 +239,12 @@ let main argv =
                 ("If a mix of currencies exists in any calculations, then all values are converted to Euro (€) first, using the conversion rate as specified by BitPanda"))
         |> TaskResult.mapError (fun e -> printfn "An error has occured: %A" e)
 
-    let apiKey =
-        if String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BITPANDA")) then
-            if not (configuration.GetConfiguration()).IsConfigured then
-                let apiKey =
-                    AnsiConsole.Ask<string>("BitPanda API Key: ")
-
-                configuration.SetApiKey(apiKey)
-                apiKey
-            else
-                (configuration.GetConfiguration()).ApiKey
-        else
-            Environment.GetEnvironmentVariable("BITPANDA")
-
-    let fetchResult () =
+    let fetchResult (configuration: ConfigurationFile) =
         let status = AnsiConsole.Status()
         status.Spinner <- Spinner.Known.Dots2
 
         status
-            .StartAsync("Getting BitPanda data...", (fun _ -> getData apiKey))
+            .StartAsync("Getting BitPanda data...", (fun _ -> getData configuration.ApiKey))
             .GetAwaiter()
             .GetResult()
 
@@ -316,8 +301,8 @@ let main argv =
          || argv |> Array.contains ("--update-configuration") then
         configuration.ResetConfiguration()
         configuration.WriteConfiguration()
-        run (fetchResult ()) |> ignore
+        run (fetchResult (configuration.GetConfiguration())) |> ignore
         0
     else
-        run (fetchResult ()) |> ignore
+        run (fetchResult (configuration.GetConfiguration())) |> ignore
         0

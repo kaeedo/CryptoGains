@@ -3,7 +3,7 @@
 open System
 open System.IO
 open CryptoGains
-open Spectre.Console.Cli
+open Spectre.Console
 open Thoth.Json.Net
 
 type WithdrawnCryptocoin =
@@ -69,6 +69,18 @@ type Configuration() =
         isConfigured <- false
 
     member this.GetConfiguration() =
+        let apiKey =
+            if String.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BITPANDA")) then
+                let apiKeyFromConfig = 
+                    if String.IsNullOrWhiteSpace(apiKey)
+                    then AnsiConsole.Ask<string>("BitPanda API Key: ")
+                    else apiKey
+                
+                apiKey <- apiKeyFromConfig
+                apiKey
+            else
+                Environment.GetEnvironmentVariable("BITPANDA")
+                
         { ConfigurationFile.ApiKey = apiKey
           WithdrawnCryptocoins = withdrawnCryptocoins
           ExternallyHeld = externallyHeld
