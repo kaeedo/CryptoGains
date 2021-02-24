@@ -1,7 +1,9 @@
 # CryptoGains
 
 A very simple Cross-platform Command Line BitPanda portfolio viewer. The main use case is to see the total gain of any cryptocurrencies you have bought using the BitPanda Brokerage service, by comparing the price paid, with the current value of the coins.
-This view is currently not available within BitPanda itself, and therefore I decided to write this small utility. You will need to create an API Key within BitPanda, with the `transactions` scope defined, and then set it as an Environment Variable with key `BITPANDA`.
+This view is currently not available within BitPanda itself, and therefore I decided to write this small utility. 
+
+You will need to create an API Key within BitPanda, with the `transactions` scope defined, and then set it as an Environment Variable with key `BITPANDA`.
 
 CryptoGains will try to get all transactions from BitPanda, and then aggregate any purchases made by Coin. For example, if I bought 50 Cardano ADA coins for 0,50 € each, and then at a later date bought 100 Cardano ADA for 0,60 € each, 
 it will show as 150 ADA bought for 85,00 €. It will then calculate the current price for all 150 ADA, and also show the difference as a number, but also as a percentage.
@@ -26,7 +28,9 @@ Example screenshot:
 * Put it in any directory
 * Open your favorite terminal or command line program
 * Navigate to where the file is located.
+* The first time you run it, it will take slightly longer to bootstrap. Every subsequent run should be fast
 * Run it. It will prompt you for first time usage
+* Make sure to either have set the `BITPANDA` environment variable with your API key, or have it ready to paste when it asks you for it
 
 ---
 
